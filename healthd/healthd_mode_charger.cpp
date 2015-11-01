@@ -72,6 +72,15 @@ char *locale;
 #define LAST_KMSG_PATH          "/proc/last_kmsg"
 #define LAST_KMSG_PSTORE_PATH   "/sys/fs/pstore/console-ramoops"
 #define LAST_KMSG_MAX_SZ        (32 * 1024)
+#ifndef RED_LED_PATH
+#define RED_LED_PATH            "/sys/class/leds/red/brightness"
+#endif
+#ifndef GREEN_LED_PATH
+#define GREEN_LED_PATH          "/sys/class/leds/green/brightness"
+#endif
+#ifndef BLUE_LED_PATH
+#define BLUE_LED_PATH           "/sys/class/leds/blue/brightness"
+#endif
 
 #define LOGE(x...) do { KLOG_ERROR("charger", x); } while (0)
 #define LOGW(x...) do { KLOG_WARNING("charger", x); } while (0)
@@ -168,12 +177,86 @@ static struct animation battery_animation = {
     .capacity = 0,
 };
 
+enum {
+    RED_LED = 0x01 << 0,
+    GREEN_LED = 0x01 << 1,
+    BLUE_LED = 0x01 << 2,
+};
+
+struct led_ctl {
+    int color;
+    const char *path;
+};
+
+struct led_ctl leds[3] =
+    {{RED_LED, RED_LED_PATH},
+    {GREEN_LED, GREEN_LED_PATH},
+    {BLUE_LED, BLUE_LED_PATH}};
+
+struct soc_led_color_mapping {
+    int soc;
+    int color;
+};
+
+struct soc_led_color_mapping soc_leds[3] = {
+    {15, RED_LED},
+    {90, RED_LED | GREEN_LED},
+    {100, GREEN_LED},
+};
+
 static struct charger charger_state;
 static struct healthd_config *healthd_config;
 static struct android::BatteryProperties *batt_prop;
 static int char_width;
 static int char_height;
 static bool minui_inited;
+
+static int set_tricolor_led(int on, int color)
+{
+    int fd, i;
+    char buffer[10];
+
+    for (i = 0; i < (int)ARRAY_SIZE(leds); i++) {
+        if ((color & leds[i].color) && (access(leds[i].path, R_OK | W_OK) == 0)) {
+            fd = open(leds[i].path, O_RDWR);
+            if (fd < 0) {
+                LOGE("Could not open led node %d\n", i);
+                continue;
+            }
+            if (on)
+                snprintf(buffer, sizeof(int), "%d\n", 255);
+            else
+                snprintf(buffer, sizeof(int), "%d\n", 0);
+
+            if (write(fd, buffer, strlen(buffer)) < 0)
+                LOGE("Could not write to led node\n");
+            if (fd >= 0)
+                close(fd);
+        }
+    }
+
+    return 0;
+}
+
+static int set_battery_soc_leds(int soc)
+{
+    int i, color;
+    static int old_color = 0;
+
+    for (i = 0; i < (int)ARRAY_SIZE(soc_leds); i++) {
+        if (soc <= soc_leds[i].soc)
+            break;
+    }
+    color = soc_leds[i].color;
+    if (old_color != color) {
+        set_tricolor_led(0, old_color);
+        set_tricolor_led(1, color);
+        old_color = color;
+        LOGV("soc = %d, set led color 0x%x\n", soc, soc_leds[i].color);
+    }
+
+    return 0;
+}
 
 /* current time in milliseconds */
 static int64_t curr_time_ms(void)
@@ -561,6 +644,11 @@ static void process_key(struct charger *charger, int code, int64_t now)
                 }
             }
         }
+    } else {
+        if (key->pending) {
+            request_suspend(false);
+            kick_animation(charger->batt_anim);
+        }
     }
 
     key->pending = false;
@@ -569,6 +657,7 @@ static void process_key(struct charger *charger, int code, int64_t now)
 static void handle_input_state(struct charger *charger, int64_t now)
 {
     process_key(charger, KEY_POWER, now);
+    process_key(charger, KEY_HOME, now);
 
     if (charger->next_key_check != -1 && now > charger->next_key_check)
         charger->next_key_check = -1;
@@ -576,10 +665,22 @@ static void handle_input_state(struct charger *charger, int64_t now)
 
 static void handle_power_supply_state(struct charger *charger, int64_t now)
 {
+    static int old_soc = 0;
+    int soc = 0;
+
     if (!charger->have_battery_state)
         return;
 
     healthd_board_mode_charger_battery_update(batt_prop);
+
+    if (batt_prop && batt_prop->batteryLevel >= 0) {
+        soc = batt_prop->batteryLevel;
+    }
+
+    if (old_soc != soc) {
+        old_soc = soc;
+        set_battery_soc_leds(soc);
+    }
 
     if (!charger->charger_connected) {
 

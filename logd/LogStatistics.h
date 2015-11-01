@@ -26,6 +26,7 @@
 #include <log/log.h>
 
 #include "LogBufferElement.h"
+#include "LogUtils.h"
 
 #define log_id_for_each(i) \
     for (log_id_t i = LOG_ID_MIN; i < LOG_ID_MAX; i = (log_id_t) (i + 1))
@@ -188,7 +189,7 @@ struct PidEntry : public EntryBaseDropped {
     const char*getName() const { return name; }
 
     inline void add(pid_t p) {
-        if (name && !strncmp(name, "zygote", 6)) {
+        if (name && !fast<strncmp>(name, "zygote", 6)) {
             free(name);
             name = NULL;
         }
@@ -240,7 +241,7 @@ struct TidEntry : public EntryBaseDropped {
     const char*getName() const { return name; }
 
     inline void add(pid_t t) {
-        if (name && !strncmp(name, "zygote", 6)) {
+        if (name && !fast<strncmp>(name, "zygote", 6)) {
             free(name);
             name = NULL;
         }
