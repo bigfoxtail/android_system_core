@@ -288,7 +288,7 @@ int LogAudit::logPrint(const char* fmt, ...) {
     size_t l = strnlen(str, LOGGER_ENTRY_MAX_PAYLOAD);
     size_t n = l + sizeof(android_log_event_string_t);
 
-    bool notify = false;
+    log_mask_t notify = 0;
 
     if (events) {  // begin scope for event buffer
         uint32_t buffer[(n + sizeof(uint32_t) - 1) / sizeof(uint32_t)];
@@ -304,7 +304,7 @@ int LogAudit::logPrint(const char* fmt, ...) {
                          reinterpret_cast<char*>(event),
                          (n <= USHRT_MAX) ? (unsigned short)n : USHRT_MAX);
         if (rc >= 0) {
-            notify = true;
+            notify |= 1 << LOG_ID_EVENTS;
         }
         // end scope for event buffer
     }
@@ -357,7 +357,7 @@ int LogAudit::logPrint(const char* fmt, ...) {
                          (n <= USHRT_MAX) ? (unsigned short)n : USHRT_MAX);
 
         if (rc >= 0) {
-            notify = true;
+            notify |= 1 << LOG_ID_MAIN;
         }
         // end scope for main buffer
     }
@@ -366,7 +366,7 @@ int LogAudit::logPrint(const char* fmt, ...) {
     free(str);
 
     if (notify) {
-        reader->notifyNewLog();
+        reader->notifyNewLog(notify);
         if (rc < 0) {
             rc = n;
         }
