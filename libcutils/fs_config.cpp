@@ -173,7 +173,7 @@ static const struct fs_path_config android_files[] = {
     // the following file is INTENTIONALLY set-uid, but it
     // is NOT included on user builds.
     { 06755, AID_ROOT,      AID_ROOT,      0, "system/xbin/procmem" },
-    // lineage's daemonized su doesn't need the setuid bit
+    // mokee's daemonized su doesn't need the setuid bit
     { 00755, AID_ROOT,      AID_SHELL,     0, "system/xbin/su" },
 
     // the following files have enhanced capabilities and ARE included
