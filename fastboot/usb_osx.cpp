@@ -102,7 +102,7 @@ static int try_interfaces(IOUSBDeviceInterface182 **dev, usb_handle *handle) {
     kr = (*dev)->CreateInterfaceIterator(dev, &request, &iterator);
 
     if (kr != 0) {
-        ERR("Couldn't create a device interface iterator: (%08x)\n", kr);
+        WARN("Couldn't create a device interface iterator: (%08x)\n", kr);
         return -1;
     }
 
