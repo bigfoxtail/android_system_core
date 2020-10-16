@@ -186,7 +186,7 @@ cc_library_static {
     },
 
     product_variables: {
-        lineage: {
+        mokee: {
             target_init_vendor_lib: {
                 whole_static_libs: ["%s"],
             },
